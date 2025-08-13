@@ -243,13 +243,16 @@
             try {
                 const codeVerifier = sessionStorage.getItem('code_verifier');
                 
-                // Exchange authorization code for tokens via your backend
-                const tokenResponse = await fetch('/api/xero/token', {
+                // TEMPORARY: Using CORS proxy for development only
+                // In production, use your own backend endpoint
+                const tokenResponse = await fetch('https://cors-anywhere.herokuapp.com/https://identity.xero.com/connect/token', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify({
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
                         code: code,
                         redirect_uri: XERO_CONFIG.redirectUri,
                         code_verifier: codeVerifier,
