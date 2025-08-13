@@ -152,7 +152,7 @@
         const XERO_CONFIG = {
             clientId: 'C31C29D207AF4035B3ACF3F9B1A49D6C',
             redirectUri: window.location.origin + window.location.pathname, // Current page as redirect URI
-            scope: 'openid profile email accounting.read accounting.write',
+            scope: 'offline_access payroll.employees.read payroll.timesheets',
             responseType: 'code',
             authorizationEndpoint: 'https://login.xero.com/identity/connect/authorize'
         };
