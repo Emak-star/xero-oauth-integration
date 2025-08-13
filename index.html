@@ -243,14 +243,13 @@
             try {
                 const codeVerifier = sessionStorage.getItem('code_verifier');
                 
-                // Exchange authorization code for tokens
-                const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
+                // Exchange authorization code for tokens via your backend
+                const tokenResponse = await fetch('/api/xero/token', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     },
-                    body: new URLSearchParams({
-                        grant_type: 'authorization_code',
+                    body: JSON.stringify({
                         code: code,
                         redirect_uri: XERO_CONFIG.redirectUri,
                         code_verifier: codeVerifier,
