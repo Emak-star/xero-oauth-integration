@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xero OAuth Integration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: #13B5EA;
+            border-radius: 50%;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        
+        p {
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .connect-btn {
+            background: #13B5EA;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 600;
+            min-width: 200px;
+        }
+        
+        .connect-btn:hover {
+            background: #0ea5d8;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(19, 181, 234, 0.3);
+        }
+        
+        .connect-btn:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.loading {
+            background: #e2e3e5;
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+        
+        .token-info {
+            margin-top: 1rem;
+            text-align: left;
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #13B5EA;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">X</div>
+        <h1>Connect to Xero</h1>
+        <p>Authorize this application to access your Xero accounting data securely using OAuth 2.0.</p>
+        
+        <button class="connect-btn" id="connectBtn" onclick="initiateXeroAuth()">
+            Connect to Xero
+        </button>
+        
+        <div class="status" id="statusDiv"></div>
+    </div>
+
+    <script>
+        // Xero OAuth 2.0 Configuration
+        const XERO_CONFIG = {
+            clientId: 'C31C29D207AF4035B3ACF3F9B1A49D6C',
+            redirectUri: window.location.origin + window.location.pathname, // Current page as redirect URI
+            scope: 'openid profile email accounting.read accounting.write',
+            responseType: 'code',
+            authorizationEndpoint: 'https://login.xero.com/identity/connect/authorize'
+        };
+
+        function generateCodeVerifier() {
+            const array = new Uint32Array(56/2);
+            window.crypto.getRandomValues(array);
+            return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
+        }
+
+        function generateCodeChallenge(codeVerifier) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(codeVerifier);
+            return window.crypto.subtle.digest('SHA-256', data).then(digest => {
+                const base64url = btoa(String.fromCharCode(...new Uint8Array(digest)))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                return base64url;
+            });
+        }
+
+        function generateState() {
+            const array = new Uint32Array(16);
+            window.crypto.getRandomValues(array);
+            return Array.from(array, dec => dec.toString(36)).join('');
+        }
+
+        async function initiateXeroAuth() {
+            try {
+                showStatus('loading', 'Preparing OAuth flow...');
+                
+                // Generate PKCE parameters
+                const codeVerifier = generateCodeVerifier();
+                const codeChallenge = await generateCodeChallenge(codeVerifier);
+                const state = generateState();
+
+                // Store PKCE parameters in sessionStorage
+                sessionStorage.setItem('code_verifier', codeVerifier);
+                sessionStorage.setItem('oauth_state', state);
+
+                // Build authorization URL
+                const params = new URLSearchParams({
+                    client_id: XERO_CONFIG.clientId,
+                    redirect_uri: XERO_CONFIG.redirectUri,
+                    response_type: XERO_CONFIG.responseType,
+                    scope: XERO_CONFIG.scope,
+                    code_challenge: codeChallenge,
+                    code_challenge_method: 'S256',
+                    state: state
+                });
+
+                const authUrl = `${XERO_CONFIG.authorizationEndpoint}?${params.toString()}`;
+                
+                // Redirect to Xero authorization
+                window.location.href = authUrl;
+                
+            } catch (error) {
+                console.error('Error initiating OAuth:', error);
+                showStatus('error', 'Failed to initiate OAuth flow: ' + error.message);
+            }
+        }
+
+        async function handleOAuthCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+
+            if (error) {
+                showStatus('error', `OAuth Error: ${error} - ${urlParams.get('error_description') || 'Unknown error'}`);
+                return;
+            }
+
+            if (!code || !state) {
+                return; // Not a callback URL
+            }
+
+            // Verify state parameter
+            const storedState = sessionStorage.getItem('oauth_state');
+            if (state !== storedState) {
+                showStatus('error', 'Invalid state parameter. Possible CSRF attack.');
+                return;
+            }
+
+            showStatus('loading', 'Exchanging authorization code for tokens...');
+
+            try {
+                const codeVerifier = sessionStorage.getItem('code_verifier');
+                
+                // Exchange authorization code for tokens
+                const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: code,
+                        redirect_uri: XERO_CONFIG.redirectUri,
+                        code_verifier: codeVerifier,
+                        client_id: XERO_CONFIG.clientId
+                    })
+                });
+
+                if (!tokenResponse.ok) {
+                    const errorData = await tokenResponse.text();
+                    throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorData}`);
+                }
+
+                const tokenData = await tokenResponse.json();
+                
+                // Clean up session storage
+                sessionStorage.removeItem('code_verifier');
+                sessionStorage.removeItem('oauth_state');
+                
+                // Clear URL parameters
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Store tokens securely (in a real app, send to your backend)
+                showStatus('success', 'Successfully connected to Xero!', tokenData);
+                
+            } catch (error) {
+                console.error('Token exchange error:', error);
+                showStatus('error', 'Failed to exchange code for tokens: ' + error.message);
+            }
+        }
+
+        function showStatus(type, message, tokenData = null) {
+            const statusDiv = document.getElementById('statusDiv');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+            
+            let content = '';
+            if (type === 'loading') {
+                content = `<div class="spinner"></div>${message}`;
+                connectBtn.disabled = true;
+            } else {
+                content = message;
+                connectBtn.disabled = false;
+                
+                if (tokenData) {
+                    content += `
+                        <div class="token-info">
+                            <strong>Access Token:</strong> ${tokenData.access_token.substring(0, 50)}...<br>
+                            <strong>Token Type:</strong> ${tokenData.token_type}<br>
+                            <strong>Expires In:</strong> ${tokenData.expires_in} seconds<br>
+                            <strong>Scope:</strong> ${tokenData.scope}
+                        </div>
+                    `;
+                }
+            }
+            
+            statusDiv.innerHTML = content;
+        }
+
+        // Check if this is a callback from Xero on page load
+        window.addEventListener('load', function() {
+            handleOAuthCallback();
+        });
+    </script>
+</body>
+</html>
