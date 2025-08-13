@@ -1,4 +1,32 @@
-<!DOCTYPE html>
+function showStatus(type, message, tokenData = null) {
+            const statusDiv = document.getElementById('statusDiv');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+            
+            let content = '';
+            if (type === 'loading') {
+                content = `<div class="spinner"></div>${message}`;
+                connectBtn.disabled = true;
+            } else {
+                content = message;
+                connectBtn.disabled = false;
+                
+                if (tokenData) {
+                    content += `
+                        <div class="token-info">
+                            <strong>Access Token:</strong> ${tokenData.access_token.substring(0, 50)}...<br>
+                            <strong>Token Type:</strong> ${tokenData.token_type}<br>
+                            <strong>Expires In:</strong> ${tokenData.expires_in} seconds<br>
+                            <strong>Scope:</strong> ${tokenData.scope}
+                        </div>
+                    `;
+                }
+            }
+            
+            statusDiv.innerHTML = content;
+        }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -238,79 +266,73 @@
                 return;
             }
 
-            showStatus('loading', 'Exchanging authorization code for tokens...');
-
-            try {
-                const codeVerifier = sessionStorage.getItem('code_verifier');
-                
-                // TEMPORARY: Using CORS proxy for development only
-                // In production, use your own backend endpoint
-                const tokenResponse = await fetch('https://cors-anywhere.herokuapp.com/https://identity.xero.com/connect/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: new URLSearchParams({
-                        grant_type: 'authorization_code',
-                        code: code,
-                        redirect_uri: XERO_CONFIG.redirectUri,
-                        code_verifier: codeVerifier,
-                        client_id: XERO_CONFIG.clientId
-                    })
-                });
-
-                if (!tokenResponse.ok) {
-                    const errorData = await tokenResponse.text();
-                    throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorData}`);
-                }
-
-                const tokenData = await tokenResponse.json();
-                
-                // Clean up session storage
-                sessionStorage.removeItem('code_verifier');
-                sessionStorage.removeItem('oauth_state');
-                
-                // Clear URL parameters
-                window.history.replaceState({}, document.title, window.location.pathname);
-                
-                // Store tokens securely (in a real app, send to your backend)
-                showStatus('success', 'Successfully connected to Xero!', tokenData);
-                
-            } catch (error) {
-                console.error('Token exchange error:', error);
-                showStatus('error', 'Failed to exchange code for tokens: ' + error.message);
-            }
+            // Show the authorization code and next steps
+            const codeVerifier = sessionStorage.getItem('code_verifier');
+            
+            // Clean up session storage
+            sessionStorage.removeItem('code_verifier');
+            sessionStorage.removeItem('oauth_state');
+            
+            // Clear URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // Show success with code and instructions
+            showAuthorizationCodeReceived(code, codeVerifier);
         }
 
-        function showStatus(type, message, tokenData = null) {
+        function showAuthorizationCodeReceived(code, codeVerifier) {
             const statusDiv = document.getElementById('statusDiv');
             const connectBtn = document.getElementById('connectBtn');
             
-            statusDiv.className = `status ${type}`;
+            statusDiv.className = 'status success';
             statusDiv.style.display = 'block';
+            connectBtn.disabled = false;
             
-            let content = '';
-            if (type === 'loading') {
-                content = `<div class="spinner"></div>${message}`;
-                connectBtn.disabled = true;
-            } else {
-                content = message;
-                connectBtn.disabled = false;
+            statusDiv.innerHTML = `
+                <strong>✅ Authorization Successful!</strong><br>
+                <p style="margin: 10px 0;">You've successfully authorized with Xero. The authorization code has been received.</p>
                 
-                if (tokenData) {
-                    content += `
-                        <div class="token-info">
-                            <strong>Access Token:</strong> ${tokenData.access_token.substring(0, 50)}...<br>
-                            <strong>Token Type:</strong> ${tokenData.token_type}<br>
-                            <strong>Expires In:</strong> ${tokenData.expires_in} seconds<br>
-                            <strong>Scope:</strong> ${tokenData.scope}
-                        </div>
-                    `;
-                }
-            }
+                <div class="token-info">
+                    <strong>Authorization Code:</strong><br>
+                    <code>${code.substring(0, 50)}...</code><br><br>
+                    
+                    <strong>Code Verifier:</strong><br>
+                    <code>${codeVerifier.substring(0, 50)}...</code><br><br>
+                    
+                    <strong>Next Steps:</strong><br>
+                    To complete the flow, exchange this code for tokens using your backend server:<br><br>
+                    
+                    <strong>POST to:</strong> https://identity.xero.com/connect/token<br>
+                    <strong>Content-Type:</strong> application/x-www-form-urlencoded<br><br>
+                    
+                    <strong>Body parameters:</strong><br>
+                    • grant_type: authorization_code<br>
+                    • code: ${code}<br>
+                    • redirect_uri: ${XERO_CONFIG.redirectUri}<br>
+                    • code_verifier: ${codeVerifier}<br>
+                    • client_id: ${XERO_CONFIG.clientId}
+                </div>
+                
+                <button onclick="copyTokenExchangeCode('${code}', '${codeVerifier}')" style="margin-top: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Copy cURL Command
+                </button>
+            `;
+        }
+        
+        function copyTokenExchangeCode(code, codeVerifier) {
+            const curlCommand = `curl -X POST https://identity.xero.com/connect/token \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  -d "grant_type=authorization_code" \\
+  -d "code=${code}" \\
+  -d "redirect_uri=${encodeURIComponent(XERO_CONFIG.redirectUri)}" \\
+  -d "code_verifier=${codeVerifier}" \\
+  -d "client_id=${XERO_CONFIG.clientId}"`;
             
-            statusDiv.innerHTML = content;
+            navigator.clipboard.writeText(curlCommand).then(() => {
+                alert('cURL command copied to clipboard! You can now run this from your backend server or terminal.');
+            }).catch(() => {
+                prompt('Copy this cURL command:', curlCommand);
+            });
         }
 
         // Check if this is a callback from Xero on page load
