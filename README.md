@@ -1,7 +1,7 @@
 # xero-oauth-integration
 A simple, secure web page that implements the complete OAuth 2.0 authorization flow for Xero accounting software integration.
 🚀 Live Demo
-Visit the live application: [Your GitHub Pages URL will be here]
+Visit the live application: https://xero-oauth-integration.netlify.app/
 ✨ Features
 
 Complete OAuth 2.0 Flow: Implements the full authorization code flow with PKCE
