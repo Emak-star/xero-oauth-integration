@@ -259,6 +259,11 @@
 
                 if (!tokenResponse.ok) {
                     const errorData = await tokenResponse.text();
+                    console.error('Token exchange failed:', {
+                        status: tokenResponse.status,
+                        statusText: tokenResponse.statusText,
+                        response: errorData
+                    });
                     throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorData}`);
                 }
 
