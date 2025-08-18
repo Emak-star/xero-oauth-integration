@@ -264,6 +264,17 @@
 
                 const tokenData = await tokenResponse.json();
                 
+                // Check if we received an error response
+                if (tokenData.error) {
+                    throw new Error(`${tokenData.error}: ${tokenData.error_description || 'Unknown error'}`);
+                }
+                
+                // Check if we have a valid access token
+                if (!tokenData.access_token) {
+                    console.log('Received response:', tokenData);
+                    throw new Error('No access token received. Check console for full response.');
+                }
+                
                 // Clean up session storage
                 sessionStorage.removeItem('code_verifier');
                 sessionStorage.removeItem('oauth_state');
@@ -298,10 +309,10 @@
                 if (tokenData) {
                     content += `
                         <div class="token-info">
-                            <strong>Access Token:</strong> ${tokenData.access_token.substring(0, 50)}...<br>
-                            <strong>Token Type:</strong> ${tokenData.token_type}<br>
-                            <strong>Expires In:</strong> ${tokenData.expires_in} seconds<br>
-                            <strong>Scope:</strong> ${tokenData.scope}
+                            <strong>Access Token:</strong> ${tokenData.access_token ? tokenData.access_token.substring(0, 50) + '...' : 'Not provided'}<br>
+                            <strong>Token Type:</strong> ${tokenData.token_type || 'Not provided'}<br>
+                            <strong>Expires In:</strong> ${tokenData.expires_in || 'Not provided'} seconds<br>
+                            <strong>Scope:</strong> ${tokenData.scope || 'Not provided'}
                         </div>
                     `;
                 }
